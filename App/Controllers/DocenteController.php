@@ -3,28 +3,17 @@
 namespace App\Controllers;
 
 use App\Models\DocenteModel;
-use CodeIgniter\Controller;
+use CodeIgniter\Controller; // Should be App\Controllers\BaseController
 
-class DocenteController extends BaseController
+class DocenteController extends BaseController // Ensure it extends your BaseController
 {
     protected $docenteModel;
     protected $helpers = ['form', 'url'];
 
-    public function __init() // Changed from __construct to __init for BaseController if it uses it. Or remove if not needed by BaseController.
-    {
-        // In CodeIgniter 4, services are typically loaded in the constructor or via service() function.
-        // For models, it's common to instantiate them in the constructor.
-        // If BaseController has an __init, ensure this doesn't conflict.
-        // Typically, direct instantiation or service() is preferred.
-        $this->docenteModel = new DocenteModel();
-    }
-
-    // If __init is not standard for your BaseController, use a constructor or instantiate on demand.
-    // For simplicity and standard CI4 practice, let's use a constructor.
     public function __construct()
     {
         $this->docenteModel = new DocenteModel();
-        helper($this->helpers); // Load helpers
+        helper($this->helpers);
     }
 
     public function index()
@@ -44,38 +33,17 @@ class DocenteController extends BaseController
         return view('docentes/show', $data);
     }
 
-    public function new()
+    // Renamed from new()
+    public function crear()
     {
-        $data['docente'] = null; // For form view consistency
-        $data['errors'] = session()->getFlashdata('errors'); // Get validation errors if redirected
-        $data['old_input'] = session()->getFlashdata('old_input'); // Get old input if redirected
+        $data['docente'] = null;
+        $data['errors'] = session()->getFlashdata('errors');
+        $data['old_input'] = session()->getFlashdata('old_input');
         return view('docentes/form', $data);
     }
 
-    public function create()
-    {
-        $data = $this->request->getPost();
-
-        // Conceptual: Set user audit fields. Replace with actual session user ID.
-        // $loggedInUserId = session()->get('user_id'); // Example: Get logged-in user ID
-        // $data['usuario_creacion_doc'] = $loggedInUserId;
-        // $data['usuario_actualizacion_doc'] = $loggedInUserId;
-        $data['usuario_creacion_doc'] = 'SYSTEM_USER_CREATE'; // Placeholder
-        $data['usuario_actualizacion_doc'] = 'SYSTEM_USER_CREATE'; // Placeholder
-
-
-        if ($this->docenteModel->save($data)) {
-            session()->setFlashdata('success', 'Docente created successfully.');
-            return redirect()->to(site_url('docentes'));
-        } else {
-            session()->setFlashdata('errors', $this->docenteModel->errors());
-            session()->setFlashdata('old_input', $this->request->getPost());
-            return redirect()->back()->withInput();
-            // Or: return view('docentes/form', ['errors' => $this->docenteModel->errors(), 'docente' => $data]);
-        }
-    }
-
-    public function edit($id_doc = null)
+    // Renamed from edit()
+    public function editar($id_doc = null)
     {
         $data['docente'] = $this->docenteModel->find($id_doc);
 
@@ -83,45 +51,97 @@ class DocenteController extends BaseController
             throw new \CodeIgniter\Exceptions\PageNotFoundException('Cannot find the docente item: ' . $id_doc);
         }
 
-        $data['errors'] = session()->getFlashdata('errors'); // Get validation errors if redirected
-        $data['old_input'] = session()->getFlashdata('old_input'); // Get old input if redirected (values for form)
+        $data['errors'] = session()->getFlashdata('errors');
+        // Old input is typically handled by redirect()->withInput() but can be explicitly passed if needed
+        // $data['old_input'] = session()->getFlashdata('old_input') ?? $data['docente'];
+        // Let's rely on withInput() for now, form.php will handle fetching old_input or $docente data.
 
         return view('docentes/form', $data);
     }
 
-    public function update($id_doc = null)
+    public function guardar()
     {
-        $data = $this->request->getPost();
+        $postData = $this->request->getPost();
+        $id_doc = $postData['id_doc'] ?? null; // Check for id_doc to determine insert or update
 
-        // Conceptual: Set user audit fields. Replace with actual session user ID.
-        // $loggedInUserId = session()->get('user_id'); // Example
-        // $data['usuario_actualizacion_doc'] = $loggedInUserId;
-        $data['usuario_actualizacion_doc'] = 'SYSTEM_USER_UPDATE'; // Placeholder
+        $validation = \Config\Services::validation();
+        $rules = $this->docenteModel->getValidationRules(); // Get base rules
 
-        // The model's update method needs the primary key as the first argument if it's not in $data.
-        // If $id_doc is part of the form data (e.g. hidden field), it would be in $data.
-        // Otherwise, pass it explicitly.
-        // The save() method can also handle updates if primary key is present in $data.
-        // For clarity, using update() method.
+        if (!empty($id_doc)) { // UPDATE
+            // Adjust validation rules for update (is_unique needs to ignore current ID)
+            // The placeholder {id_doc} in model rules is for the current ID.
+            // So, we need to replace it with the actual $id_doc.
+            // This is simpler if model rules are defined with {id} placeholder.
+            // Let's assume the model rules are like: 'email_doc' => 'required|valid_email|is_unique[public.docente.email_doc,id_doc,{id_doc}]'
+            // If the model rule is 'email_doc' => 'required|valid_email|is_unique[public.docente.email_doc,id_doc,{id}]'
+            // then the model's save method (when id is present) or update method handles this automatically.
+            // However, if we are calling $validation->setRules() manually, we need to be careful.
+            // For this refactor, we will rely on the model's `save()` method to correctly handle update validation if an ID is present in the data.
+            // Or, more explicitly for `update()` method of model:
 
-        if ($this->docenteModel->update($id_doc, $data)) {
-            session()->setFlashdata('success', 'Docente updated successfully.');
-            return redirect()->to(site_url('docentes'));
-        } else {
-            session()->setFlashdata('errors', $this->docenteModel->errors());
-            session()->setFlashdata('old_input', $this->request->getPost());
-             return redirect()->back()->withInput();
-            // Or: return view('docentes/form', ['errors' => $this->docenteModel->errors(), 'docente' => array_merge($this->docenteModel->find($id_doc), $data)]);
+            // Re-fetch rules to ensure we have the base set.
+            $currentRules = $this->docenteModel->getValidationRules();
+            $updateRules = [
+                'cedula_doc' => "required|is_unique[public.docente.cedula_doc,id_doc,{$id_doc}]",
+                'email_doc'  => "required|valid_email|is_unique[public.docente.email_doc,id_doc,{$id_doc}]",
+                'primer_apellido_doc' => $currentRules['primer_apellido_doc'] ?? 'required',
+                'nombre_doc' => $currentRules['nombre_doc'] ?? 'required',
+                'fk_id_car' => $currentRules['fk_id_car'] ?? 'required|integer',
+                'fk_id_usu' => $currentRules['fk_id_usu'] ?? 'required|integer',
+                // Add other fields that need validation on update
+            ];
+            $validation->setRules($updateRules);
+
+            // Conceptual: Set user audit fields.
+            $postData['usuario_actualizacion_doc'] = 'SYSTEM_USER_UPDATE'; // Placeholder
+
+            if ($validation->run($postData)) {
+                if ($this->docenteModel->update($id_doc, $postData)) {
+                    session()->setFlashdata('success', 'Docente actualizado correctamente.');
+                    return redirect()->to(site_url('docente'));
+                } else {
+                    session()->setFlashdata('error', 'Error al actualizar el docente.');
+                    // $data_view = ['errors' => $this->docenteModel->errors(), 'docente' => array_merge($this->docenteModel->find($id_doc), $postData)];
+                    // return view('docentes/form', $data_view);
+                    return redirect()->back()->withInput()->with('errors', $this->docenteModel->errors());
+                }
+            } else {
+                session()->setFlashdata('errors', $validation->getErrors());
+                // $data_view = ['errors' => $validation->getErrors(), 'docente' => array_merge($this->docenteModel->find($id_doc), $postData)];
+                // return view('docentes/form', $data_view);
+                return redirect()->to(site_url('docente/editar/'.$id_doc))->withInput()->with('errors', $validation->getErrors());
+            }
+
+        } else { // INSERT
+            // Conceptual: Set user audit fields.
+            $postData['usuario_creacion_doc'] = 'SYSTEM_USER_CREATE'; // Placeholder
+            $postData['usuario_actualizacion_doc'] = 'SYSTEM_USER_CREATE'; // Placeholder
+
+            // For insert, use the model's default validation rules.
+            // The model's save method will use its validation rules automatically if no rules are passed to validate().
+            // $validation->setRules($this->docenteModel->getValidationRules());
+
+            // The model's save() method handles validation internally if $data is passed.
+            if ($this->docenteModel->save($postData)) {
+                session()->setFlashdata('success', 'Docente creado correctamente.');
+                return redirect()->to(site_url('docente'));
+            } else {
+                session()->setFlashdata('errors', $this->docenteModel->errors());
+                // $data_view = ['errors' => $this->docenteModel->errors(), 'docente' => $postData, 'old_input' => $postData];
+                // return view('docentes/form', $data_view);
+                return redirect()->to(site_url('docente/crear'))->withInput()->with('errors', $this->docenteModel->errors());
+            }
         }
     }
 
-    public function delete($id_doc = null)
+    // Renamed from delete()
+    public function eliminar($id_doc = null)
     {
         if ($this->docenteModel->delete($id_doc)) {
-            session()->setFlashdata('success', 'Docente deleted successfully.');
+            session()->setFlashdata('success', 'Docente eliminado correctamente.');
         } else {
-            session()->setFlashdata('error', 'Failed to delete docente.');
+            session()->setFlashdata('error', 'Error al eliminar el docente.');
         }
-        return redirect()->to(site_url('docentes'));
+        return redirect()->to(site_url('docente'));
     }
 }

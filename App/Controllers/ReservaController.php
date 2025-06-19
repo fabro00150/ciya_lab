@@ -5,7 +5,7 @@ namespace App\Controllers;
 use App\Models\ReservaModel;
 use App\Models\DocenteModel;
 use App\Models\LaboratorioModel;
-use CodeIgniter\Controller;
+// use CodeIgniter\Controller; // BaseController is already extended
 use CodeIgniter\I18n\Time; // For date/time manipulation
 
 class ReservaController extends BaseController
@@ -13,7 +13,7 @@ class ReservaController extends BaseController
     protected $reservaModel;
     protected $docenteModel;
     protected $laboratorioModel;
-    protected $helpers = ['form', 'url', 'date']; // Added 'date' helper
+    protected $helpers = ['form', 'url', 'date'];
 
     public function __construct()
     {
@@ -25,18 +25,16 @@ class ReservaController extends BaseController
 
     public function index()
     {
-        // Using the new model method to fetch details
         $data['reservas'] = $this->reservaModel->getReservasWithDetails();
         return view('reservas/index', $data);
     }
 
     public function show($id_res = null)
     {
-        // Using the new model method to fetch details
         $reserva = $this->reservaModel->getReservaWithDetails($id_res);
 
         if (empty($reserva)) {
-            throw new \CodeIgniter\Exceptions\PageNotFoundException('Cannot find the reserva item: ' . $id_res);
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('No se encontró la reserva con ID: ' . $id_res);
         }
         $data['reserva'] = $reserva;
         return view('reservas/show', $data);
@@ -44,11 +42,10 @@ class ReservaController extends BaseController
 
     private function _loadDropdownData()
     {
-        $data['docentes'] = $this->docenteModel->select('id_doc, nombre_doc, primer_apellido_doc, cedula_doc')
+        $data['docentes'] = $this->docenteModel->select('id_doc, nombre_doc, primer_apellido_doc, segundo_apellido_doc, cedula_doc')
                                              ->orderBy('primer_apellido_doc', 'ASC')->findAll();
         $data['laboratorios'] = $this->laboratorioModel->select('id_lab, nombre_lab, siglas_lab')
                                                     ->orderBy('nombre_lab', 'ASC')->findAll();
-        // Add other data like tipo_reserva, areas if needed from other models
         $data['estados_reserva'] = [
             'Solicitada' => 'Solicitada',
             'Confirmada' => 'Confirmada',
@@ -57,214 +54,187 @@ class ReservaController extends BaseController
             'Rechazada' => 'Rechazada',
             'En Curso' => 'En Curso'
         ];
+        // Add other data like tipo_reserva, areas if needed from other models
         return $data;
     }
 
-    public function new()
+    // Renamed from new()
+    public function crear()
     {
         $data = $this->_loadDropdownData();
-        $data['reserva'] = null; // For form consistency
+        $data['reserva'] = null;
         $data['errors'] = session()->getFlashdata('errors');
         $data['old_input'] = session()->getFlashdata('old_input');
         return view('reservas/form', $data);
     }
 
-    public function create()
-    {
-        $validation = \Config\Services::validation();
-        $validation->setRules($this->reservaModel->getValidationRules()); // Use rules from model
-
-        $postData = $this->request->getPost();
-
-        // Ensure keys for special column names match exactly
-        $dataToSave = [
-            'fk_id_tipres' => $postData['fk_id_tipres'] ?? null,
-            'fk_id_doc' => $postData['fk_id_doc'] ?? null,
-            'fk_id_lab' => $postData['fk_id_lab'] ?? null,
-            'fk_id_area' => $postData['fk_id_area'] ?? null,
-            'fk_id_guia' => $postData['fk_id_guia'] ?? null,
-            'tema_res' => $postData['tema_res'] ?? null,
-            'comentario_res' => $postData['comentario_res'] ?? null,
-            'estado_res' => $postData['estado_res'] ?? null,
-            'fecha_hora_res' => $postData['fecha_hora_res'] ?? null,
-            'duracion_res' => $postData['duracion_res'] ?? null,
-            'numero_participantes_res' => $postData['numero_participantes_res'] ?? null,
-            'descripcion_participantes_res' => $postData['descripcion_participantes_res'] ?? null,
-            'materiales_res' => $postData['materiales_res'] ?? null,
-            'observaciones_finales_res' => $postData['observaciones_finales_res'] ?? null,
-            'asistencia_res' => $postData['asistencia_res'] ?? null,
-            'guia_adjunta_res' => $postData['guia_adjunta_res'] ?? null,
-            'curso_res' => $postData['curso_res'] ?? null,
-            'materia_res' => $postData['materia_res'] ?? null,
-            'fk_id_car-2' => $postData['fk_id_car-2'] ?? null, // Special name
-            'paralelo_res' => $postData['paralelo_res'] ?? null,
-            'tipo_texto_res' => $postData['tipo_texto_res'] ?? null,
-            'fk_id_usu-2' => $postData['fk_id_usu-2'] ?? null, // Special name
-            'software_res' => $postData['software_res'] ?? null,
-            'tipo_res' => $postData['tipo_res'] ?? null,
-            'pedidodocente_res' => $postData['pedidodocente_res'] ?? null, // Special name
-            // usuario_creacion_res, usuario_actualizacion_res, and fecha_hora_fin_res will be handled
-        ];
-
-
-        // Conceptual: Set user audit fields
-        $dataToSave['usuario_creacion_res'] = 'SYSTEM_USER_RES_CREATE'; // Placeholder
-        $dataToSave['usuario_actualizacion_res'] = 'SYSTEM_USER_RES_CREATE'; // Placeholder
-
-        // Calculate end time for availability check (Model's beforeInsert will also do this for saving)
-        $calculatedEndTime = null;
-        if (!empty($dataToSave['fecha_hora_res']) && !empty($dataToSave['duracion_res'])) {
-            try {
-                $startTime = new Time($dataToSave['fecha_hora_res']);
-                $calculatedEndTime = $startTime->addMinutes((int)$dataToSave['duracion_res'])->toDateTimeString();
-                $dataToSave['fecha_hora_fin_res'] = $calculatedEndTime; // Ensure it's set for saving if not using callback for this check
-            } catch (\Exception $e) {
-                // Error handling for date conversion
-                session()->setFlashdata('error', 'Invalid date format or duration.');
-                return redirect()->back()->withInput()->with('errors', ['date_error' => 'Invalid date format or duration.']);
-            }
-        } else {
-             // This should be caught by validation, but as a safeguard:
-            session()->setFlashdata('error', 'Start time and duration are required to check availability.');
-            return redirect()->back()->withInput()->with('errors', ['availability_error' => 'Start time and duration are required.']);
-        }
-
-
-        if ($validation->run($dataToSave)) { // Validate the prepared data
-            // Check availability
-            $isAvailable = $this->reservaModel->checkAvailability(
-                (int)$dataToSave['fk_id_lab'],
-                $dataToSave['fecha_hora_res'],
-                $calculatedEndTime // Use the calculated end time
-            );
-
-            if (!$isAvailable) {
-                session()->setFlashdata('error', 'The selected laboratory is not available for the chosen time slot.');
-                session()->setFlashdata('old_input', $postData); // Pass original post data back
-                return redirect()->back()->withInput()->with('errors', ['availability_error' => 'Laboratory not available.']);
-            }
-
-            if ($this->reservaModel->save($dataToSave)) {
-                session()->setFlashdata('success', 'Reserva created successfully.');
-                return redirect()->to(site_url('reservas'));
-            } else {
-                // This case might be rare if validation and availability check passed, but could be DB error
-                session()->setFlashdata('error', 'Failed to create reserva. Please try again.');
-                session()->setFlashdata('old_input', $postData);
-                session()->setFlashdata('errors', $this->reservaModel->errors()); // Get model's own errors if any
-                return redirect()->back()->withInput();
-            }
-        } else {
-            session()->setFlashdata('errors', $validation->getErrors());
-            session()->setFlashdata('old_input', $postData); // Pass original post data back
-            return redirect()->back()->withInput();
-        }
-    }
-
-    public function edit($id_res = null)
+    // Renamed from edit()
+    public function editar($id_res = null)
     {
         $data = $this->_loadDropdownData();
         $data['reserva'] = $this->reservaModel->find($id_res);
 
         if (empty($data['reserva'])) {
-            throw new \CodeIgniter\Exceptions\PageNotFoundException('Cannot find the reserva item: ' . $id_res);
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('No se encontró la reserva con ID: ' . $id_res);
         }
 
         $data['errors'] = session()->getFlashdata('errors');
-        // old_input is typically handled by withInput() redirect
+        // old_input is handled by withInput() redirect
         return view('reservas/form', $data);
     }
 
-    public function update($id_res = null)
+    public function guardar()
     {
+        $postData = $this->request->getPost();
+        $id_res = $postData['id_res'] ?? null;
+
         $validation = \Config\Services::validation();
-        // Add {id_res} to unique rules if any were defined for update (not in this case yet)
+        // Model rules will be used by $this->reservaModel->save/update if not set explicitly on $validation
+        // However, for custom error messages or specific scenarios, setting them here is useful.
         $validation->setRules($this->reservaModel->getValidationRules());
 
-        $postData = $this->request->getPost();
+        // Prepare data for saving, ensuring all fields from $allowedFields are considered
+        // and keys for special column names match exactly.
+        $dataToSave = [];
+        foreach ($this->reservaModel->allowedFields as $field) {
+            if (isset($postData[$field])) {
+                $dataToSave[$field] = $postData[$field];
+            }
+        }
+        // Ensure boolean value for pedidodocente_res if it's a checkbox or select
+        $dataToSave['pedidodocente_res'] = isset($postData['pedidodocente_res']) ? filter_var($postData['pedidodocente_res'], FILTER_VALIDATE_BOOLEAN) : false;
 
-        $dataToSave = [
-            'fk_id_tipres' => $postData['fk_id_tipres'] ?? null,
-            'fk_id_doc' => $postData['fk_id_doc'] ?? null,
-            'fk_id_lab' => $postData['fk_id_lab'] ?? null,
-            'fk_id_area' => $postData['fk_id_area'] ?? null,
-            'fk_id_guia' => $postData['fk_id_guia'] ?? null,
-            'tema_res' => $postData['tema_res'] ?? null,
-            'comentario_res' => $postData['comentario_res'] ?? null,
-            'estado_res' => $postData['estado_res'] ?? null,
-            'fecha_hora_res' => $postData['fecha_hora_res'] ?? null,
-            'duracion_res' => $postData['duracion_res'] ?? null,
-            'numero_participantes_res' => $postData['numero_participantes_res'] ?? null,
-            'descripcion_participantes_res' => $postData['descripcion_participantes_res'] ?? null,
-            'materiales_res' => $postData['materiales_res'] ?? null,
-            'observaciones_finales_res' => $postData['observaciones_finales_res'] ?? null,
-            'asistencia_res' => $postData['asistencia_res'] ?? null,
-            'guia_adjunta_res' => $postData['guia_adjunta_res'] ?? null,
-            'curso_res' => $postData['curso_res'] ?? null,
-            'materia_res' => $postData['materia_res'] ?? null,
-            'fk_id_car-2' => $postData['fk_id_car-2'] ?? null,
-            'paralelo_res' => $postData['paralelo_res'] ?? null,
-            'tipo_texto_res' => $postData['tipo_texto_res'] ?? null,
-            'fk_id_usu-2' => $postData['fk_id_usu-2'] ?? null,
-            'software_res' => $postData['software_res'] ?? null,
-            'tipo_res' => $postData['tipo_res'] ?? null,
-            'pedidodocente_res' => $postData['pedidodocente_res'] ?? null,
-        ];
 
-        $dataToSave['usuario_actualizacion_res'] = 'SYSTEM_USER_RES_UPDATE'; // Placeholder
-
+        // Calculate fecha_hora_fin_res
         $calculatedEndTime = null;
         if (!empty($dataToSave['fecha_hora_res']) && !empty($dataToSave['duracion_res'])) {
-             try {
+            try {
                 $startTime = new Time($dataToSave['fecha_hora_res']);
-                $calculatedEndTime = $startTime->addMinutes((int)$dataToSave['duracion_res'])->toDateTimeString();
-                $dataToSave['fecha_hora_fin_res'] = $calculatedEndTime;
+                $durationMinutes = (int)$dataToSave['duracion_res'];
+                if ($durationMinutes <= 0) {
+                    // Add error to validation instance directly
+                    $validation->setError('duracion_res', 'La duración debe ser un número positivo de minutos.');
+                } else {
+                    $calculatedEndTime = $startTime->addMinutes($durationMinutes)->toDateTimeString();
+                    $dataToSave['fecha_hora_fin_res'] = $calculatedEndTime; // Add to data to be saved
+                }
             } catch (\Exception $e) {
-                session()->setFlashdata('error', 'Invalid date format or duration for update.');
-                return redirect()->back()->withInput()->with('errors', ['date_error' => 'Invalid date format or duration.']);
+                $validation->setError('fecha_hora_res', 'Formato de fecha/hora de inicio inválido.');
             }
         } else {
-            session()->setFlashdata('error', 'Start time and duration are required for update.');
-            return redirect()->back()->withInput()->with('errors', ['availability_error' => 'Start time and duration are required.']);
+            if (empty($dataToSave['fecha_hora_res'])) $validation->setError('fecha_hora_res', 'La fecha y hora de inicio es requerida.');
+            if (empty($dataToSave['duracion_res'])) $validation->setError('duracion_res', 'La duración es requerida.');
         }
 
-        if ($validation->run($dataToSave)) {
+        // Run initial validation for basic field requirements
+        if (!$validation->run($dataToSave)) {
+            // If basic validation fails (e.g. required fields missing before availability check)
+            $viewData = $this->_loadDropdownData();
+            $viewData['errors'] = $validation->getErrors();
+            $viewData['old_input'] = $postData; // Use original postData for old_input
+            $viewData['reserva'] = $id_res ? $this->reservaModel->find($id_res) : null; // Keep existing data if editing
+
+            $form_view_path = 'reservas/form';
+            // session()->setFlashdata('errors', $validation->getErrors());
+            // session()->setFlashdata('old_input', $postData);
+            // $redirect_url = $id_res ? site_url('reserva/editar/'.$id_res) : site_url('reserva/crear');
+            // return redirect()->to($redirect_url)->withInput()->with('errors', $validation->getErrors());
+            return view($form_view_path, array_merge($viewData, ['errors' => $validation->getErrors()]));
+        }
+
+
+        // Availability Check (only if basic validation passed and we have necessary data)
+        if ($calculatedEndTime) { // Ensure calculation was successful
             $isAvailable = $this->reservaModel->checkAvailability(
                 (int)$dataToSave['fk_id_lab'],
                 $dataToSave['fecha_hora_res'],
                 $calculatedEndTime,
-                (int)$id_res // Exclude current reserva ID
+                $id_res ? (int)$id_res : null // Pass $id_res if updating
             );
 
             if (!$isAvailable) {
-                session()->setFlashdata('error', 'The selected laboratory is not available for the chosen time slot.');
-                session()->setFlashdata('old_input', $postData);
-                return redirect()->back()->withInput()->with('errors', ['availability_error' => 'Laboratory not available.']);
+                // Add custom error to the validation service instance
+                $validation->setError('fk_id_lab', 'El laboratorio no está disponible en el horario seleccionado.');
+            }
+        }
+
+        // Re-check validation after availability check might have added an error
+        if (!$validation->run($dataToSave) || (isset($isAvailable) && !$isAvailable) ) {
+            $viewData = $this->_loadDropdownData();
+            // Merge existing errors with potential new availability error
+            $currentErrors = $validation->getErrors();
+            if (isset($isAvailable) && !$isAvailable && !isset($currentErrors['fk_id_lab'])) {
+                 $currentErrors['fk_id_lab'] = 'El laboratorio no está disponible en el horario seleccionado.';
             }
 
-            if ($this->reservaModel->update($id_res, $dataToSave)) {
-                session()->setFlashdata('success', 'Reserva updated successfully.');
-                return redirect()->to(site_url('reservas'));
-            } else {
-                session()->setFlashdata('error', 'Failed to update reserva. Please try again.');
-                session()->setFlashdata('old_input', $postData);
-                session()->setFlashdata('errors', $this->reservaModel->errors());
-                return redirect()->back()->withInput();
-            }
-        } else {
-            session()->setFlashdata('errors', $validation->getErrors());
-            session()->setFlashdata('old_input', $postData);
-            return redirect()->back()->withInput();
+            $viewData['errors'] = $currentErrors;
+            $viewData['old_input'] = $postData;
+            $viewData['reserva'] = $id_res ? $this->reservaModel->find($id_res) : $dataToSave; // Use dataToSave for create form repopulation
+
+            $form_view_path = 'reservas/form';
+            // session()->setFlashdata('errors', $currentErrors);
+            // session()->setFlashdata('old_input', $postData);
+            // $redirect_url = $id_res ? site_url('reserva/editar/'.$id_res) : site_url('reserva/crear');
+            // return redirect()->to($redirect_url)->withInput()->with('errors', $currentErrors);
+             return view($form_view_path, array_merge($viewData, ['errors' => $currentErrors]));
         }
+
+
+        // Proceed to save/update if all checks passed
+        if (!empty($id_res)) { // UPDATE
+            $dataToSave['usuario_actualizacion_res'] = 'SYSTEM_USER_RES_UPDATE'; // Placeholder
+            if ($this->reservaModel->update($id_res, $dataToSave)) {
+                session()->setFlashdata('success', 'Reserva actualizada correctamente.');
+                return redirect()->to(site_url('reserva'));
+            } else {
+                session()->setFlashdata('error', 'Error al actualizar la reserva.');
+                // $this->reservaModel->errors() might be empty if DB error not validation
+            }
+        } else { // INSERT
+            $dataToSave['usuario_creacion_res'] = 'SYSTEM_USER_RES_CREATE';
+            $dataToSave['usuario_actualizacion_res'] = 'SYSTEM_USER_RES_CREATE';
+            if ($this->reservaModel->save($dataToSave)) {
+                session()->setFlashdata('success', 'Reserva creada correctamente.');
+                return redirect()->to(site_url('reserva'));
+            } else {
+                session()->setFlashdata('error', 'Error al crear la reserva.');
+                 // $this->reservaModel->errors() will contain validation errors if save failed due to them
+            }
+        }
+
+        // Fallback redirect if save/update fails for non-validation reasons (e.g. DB issue)
+        // Or if specific errors from model need to be passed
+        $viewData = $this->_loadDropdownData();
+        $viewData['errors'] = $this->reservaModel->errors() ?: (session()->getFlashdata('errors') ?: ['general_error' => session()->getFlashdata('error') ?? 'Ocurrió un error desconocido.']);
+        $viewData['old_input'] = $postData;
+        $viewData['reserva'] = $id_res ? $this->reservaModel->find($id_res) : $dataToSave;
+
+        // session()->setFlashdata('errors', $viewData['errors']);
+        // session()->setFlashdata('old_input', $postData);
+        // $redirect_url = $id_res ? site_url('reserva/editar/'.$id_res) : site_url('reserva/crear');
+        // return redirect()->to($redirect_url)->withInput();
+        return view('reservas/form', array_merge($viewData, ['errors' => $viewData['errors']]));
     }
 
-    public function delete($id_res = null)
+    // Renamed from delete()
+    public function eliminar($id_res = null)
     {
-        if ($this->reservaModel->delete($id_res)) {
-            session()->setFlashdata('success', 'Reserva deleted successfully.');
-        } else {
-            session()->setFlashdata('error', 'Failed to delete reserva.');
+        $reserva = $this->reservaModel->find($id_res);
+        if (empty($reserva)) {
+            session()->setFlashdata('error', 'Reserva no encontrada.');
+            return redirect()->to(site_url('reserva'));
         }
-        return redirect()->to(site_url('reservas'));
+
+        if ($this->reservaModel->delete($id_res)) {
+            session()->setFlashdata('success', 'Reserva eliminada correctamente.');
+        } else {
+            $dbError = $this->reservaModel->db->error();
+            if ($dbError && !empty($dbError['message'])) {
+                 session()->setFlashdata('error', 'Error al eliminar la reserva. (DB Error: ' . $dbError['code'] .')');
+            } else {
+                 session()->setFlashdata('error', 'Error al eliminar la reserva.');
+            }
+        }
+        return redirect()->to(site_url('reserva'));
     }
 }

@@ -1,4 +1,12 @@
+
+<?= $this->extend('base') ?>
+
+<?= $this->section('title') ?>
+    <?= esc($title ?? 'Inicio - Sistema de Gestión') ?>
+<?= $this->endSection() ?>
+=======
 <?= $this->extends('base') ?>
+
 
 <?= $this->section('content') ?>
 
@@ -25,7 +33,7 @@
                         académicos y de contacto.
                     </p>
                     <div class="mt-auto">
-                        <a href="<?= site_url('docentes') ?>" class="btn btn-primary">
+                        <a href="<?= site_url('docente') ?>" class="btn btn-primary">
                             Ir a Docentes <i class="fas fa-chalkboard-teacher ms-1"></i> <!-- Optional: Font Awesome icon -->
                         </a>
                     </div>
@@ -42,7 +50,7 @@
                         responsables y horarios de funcionamiento.
                     </p>
                     <div class="mt-auto">
-                        <a href="<?= site_url('laboratorios') ?>" class="btn btn-primary">
+                        <a href="<?= site_url('laboratorio') ?>" class="btn btn-primary">
                             Ir a Laboratorios <i class="fas fa-flask ms-1"></i> <!-- Optional: Font Awesome icon -->
                         </a>
                     </div>
@@ -59,7 +67,7 @@
                         para clases, prácticas y eventos académicos.
                     </p>
                     <div class="mt-auto">
-                        <a href="<?= site_url('reservas') ?>" class="btn btn-primary">
+                        <a href="<?= site_url('reserva') ?>" class="btn btn-primary">
                             Ir a Reservas <i class="fas fa-calendar-alt ms-1"></i> <!-- Optional: Font Awesome icon -->
                         </a>
                     </div>

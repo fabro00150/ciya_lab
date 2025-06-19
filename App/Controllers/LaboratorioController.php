@@ -4,9 +4,8 @@ namespace App\Controllers;
 
 use App\Models\LaboratorioModel;
 use App\Models\DocenteModel; // For fetching docentes
-use CodeIgniter\Controller;
 
-class LaboratorioController extends BaseController
+class LaboratorioController extends BaseController // Ensure it extends your BaseController
 {
     protected $laboratorioModel;
     protected $docenteModel;
@@ -15,13 +14,14 @@ class LaboratorioController extends BaseController
     public function __construct()
     {
         $this->laboratorioModel = new LaboratorioModel();
-        $this->docenteModel = new DocenteModel(); // Instantiate DocenteModel
-        helper($this->helpers); // Load helpers
+        $this->docenteModel = new DocenteModel();
+        helper($this->helpers);
     }
 
     public function index()
     {
         $data['laboratorios'] = $this->laboratorioModel->findAll();
+        // Consider joining with docente model here if you want to display responsable name in index
         return view('laboratorios/index', $data);
     }
 
@@ -30,20 +30,22 @@ class LaboratorioController extends BaseController
         $laboratorio = $this->laboratorioModel->find($id_lab);
 
         if (empty($laboratorio)) {
-            throw new \CodeIgniter\Exceptions\PageNotFoundException('Cannot find the laboratorio item: ' . $id_lab);
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('No se encontró el laboratorio con ID: ' . $id_lab);
         }
 
-        // Optionally, fetch responsible docente's name
-        $docente_responsable = $this->docenteModel->find($laboratorio['fk_docente_responsable_lab']);
-        $laboratorio['docente_responsable_nombre'] = $docente_responsable ? $docente_responsable['nombre_doc'] . ' ' . $docente_responsable['primer_apellido_doc'] : 'N/A';
-
-        // You might want to do the same for fk_administrativo_responsable_lab if you have an AdminModel
+        // Fetch responsible docente's name
+        if (!empty($laboratorio['fk_docente_responsable_lab'])) {
+            $docente_responsable = $this->docenteModel->find($laboratorio['fk_docente_responsable_lab']);
+            $laboratorio['docente_responsable_nombre'] = $docente_responsable ? trim($docente_responsable['nombre_doc'] . ' ' . $docente_responsable['primer_apellido_doc']) : 'N/D';
+        } else {
+            $laboratorio['docente_responsable_nombre'] = 'No asignado';
+        }
 
         $data['laboratorio'] = $laboratorio;
         return view('laboratorios/show', $data);
     }
 
-    private function _loadDocentesData()
+    private function _loadDropdownData()
     {
         // Fetch only necessary fields for the dropdown
         return $this->docenteModel->select('id_doc, nombre_doc, primer_apellido_doc, segundo_apellido_doc, cedula_doc')
@@ -51,99 +53,104 @@ class LaboratorioController extends BaseController
                                   ->findAll();
     }
 
-    public function new()
+    // Renamed from new()
+    public function crear()
     {
-        $data['laboratorio'] = null; // For form consistency
-        $data['docentes'] = $this->_loadDocentesData();
+        $data['laboratorio'] = null;
+        $data['docentes'] = $this->_loadDropdownData();
         $data['errors'] = session()->getFlashdata('errors');
         $data['old_input'] = session()->getFlashdata('old_input');
         return view('laboratorios/form', $data);
     }
 
-    public function create()
-    {
-        $data_post = $this->request->getPost();
-
-        // Conceptual: Set user audit fields
-        // $loggedInUserId = session()->get('user_id'); // Example
-        // $data_post['usuario_creacion_lab'] = $loggedInUserId;
-        // $data_post['usuario_actualizacion_lab'] = $loggedInUserId;
-        $data_post['usuario_creacion_lab'] = 'SYSTEM_USER_LAB_CREATE'; // Placeholder
-        $data_post['usuario_actualizacion_lab'] = 'SYSTEM_USER_LAB_CREATE'; // Placeholder
-
-        if ($this->laboratorioModel->save($data_post)) {
-            session()->setFlashdata('success', 'Laboratorio created successfully.');
-            return redirect()->to(site_url('laboratorios'));
-        } else {
-            session()->setFlashdata('errors', $this->laboratorioModel->errors());
-            session()->setFlashdata('old_input', $this->request->getPost());
-            // Need to pass docentes again to the form if validation fails
-            // $data_view['docentes'] = $this->_loadDocentesData();
-            // $data_view['errors'] = $this->laboratorioModel->errors();
-            // $data_view['laboratorio'] = $data_post; // old input
-            // return view('laboratorios/form', $data_view);
-            return redirect()->back()->withInput(); // Simpler way, relies on session flash for errors/old_input
-        }
-    }
-
-    public function edit($id_lab = null)
+    // Renamed from edit()
+    public function editar($id_lab = null)
     {
         $laboratorio = $this->laboratorioModel->find($id_lab);
 
         if (empty($laboratorio)) {
-            throw new \CodeIgniter\Exceptions\PageNotFoundException('Cannot find the laboratorio item: ' . $id_lab);
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('No se encontró el laboratorio con ID: ' . $id_lab);
         }
 
         $data['laboratorio'] = $laboratorio;
-        $data['docentes'] = $this->_loadDocentesData();
+        $data['docentes'] = $this->_loadDropdownData();
         $data['errors'] = session()->getFlashdata('errors');
-        // old_input will be set by withInput() if coming from a failed update attempt
-        // or could be manually set if needed: $data['old_input'] = session()->getFlashdata('old_input');
+        // old_input is handled by withInput()
 
         return view('laboratorios/form', $data);
     }
 
-    public function update($id_lab = null)
+    public function guardar()
     {
-        $data_post = $this->request->getPost();
+        $postData = $this->request->getPost();
+        $id_lab = $postData['id_lab'] ?? null;
 
-        // Conceptual: Set user audit fields
-        // $loggedInUserId = session()->get('user_id'); // Example
-        // $data_post['usuario_actualizacion_lab'] = $loggedInUserId;
-        $data_post['usuario_actualizacion_lab'] = 'SYSTEM_USER_LAB_UPDATE'; // Placeholder
+        $validation = \Config\Services::validation();
+        // Get base rules from Model for all fields
+        $rules = $this->laboratorioModel->getValidationRules();
 
-        if ($this->laboratorioModel->update($id_lab, $data_post)) {
-            session()->setFlashdata('success', 'Laboratorio updated successfully.');
-            return redirect()->to(site_url('laboratorios'));
-        } else {
-            session()->setFlashdata('errors', $this->laboratorioModel->errors());
-            session()->setFlashdata('old_input', $this->request->getPost());
-            // Need to pass docentes again to the form if validation fails
-            // $data_view['docentes'] = $this->_loadDocentesData();
-            // $data_view['errors'] = $this->laboratorioModel->errors();
-            // $data_view['laboratorio'] = array_merge($this->laboratorioModel->find($id_lab), $data_post); // merge existing with new attempt
-            // return view('laboratorios/form', $data_view);
-            return redirect()->back()->withInput(); // Simpler way
+        if (!empty($id_lab)) { // UPDATE
+            // For updates, if 'nombre_lab' needs to be unique BUT ignore current record:
+            // $rules['nombre_lab'] = "required|is_unique[laboratorios.laboratorio.nombre_lab,id_lab,{$id_lab}]";
+            // For now, we assume basic required validation is enough, or unique validation is not needed for nombre_lab on update,
+            // or the model handles it correctly if PK is part of data in save().
+            // If specific unique fields are there, they need this kind of rule adjustment.
+            // Let's assume for now the model's default rules are sufficient or `save` handles it.
+            // If not, explicit rule setting like in DocenteController is needed.
+            // $validation->setRules($rules); // If you need to modify rules for update
+
+            $postData['usuario_actualizacion_lab'] = 'SYSTEM_USER_LAB_UPDATE'; // Placeholder
+
+            // If using $this->laboratorioModel->update(), validation must be run first.
+            if ($validation->run($postData, 'laboratorio')) { // Use validation group if defined in Validation.php
+                 if ($this->laboratorioModel->update($id_lab, $postData)) {
+                    session()->setFlashdata('success', 'Laboratorio actualizado correctamente.');
+                    return redirect()->to(site_url('laboratorio'));
+                } else {
+                    session()->setFlashdata('error', 'Error al actualizar el laboratorio.');
+                    return redirect()->back()->withInput()->with('errors', $this->laboratorioModel->errors());
+                }
+            } else {
+                 session()->setFlashdata('errors', $validation->getErrors());
+                 return redirect()->to(site_url('laboratorio/editar/'.$id_lab))->withInput()->with('errors', $validation->getErrors());
+            }
+
+        } else { // INSERT
+            $postData['usuario_creacion_lab'] = 'SYSTEM_USER_LAB_CREATE';
+            $postData['usuario_actualizacion_lab'] = 'SYSTEM_USER_LAB_CREATE';
+
+            // The model's save() method handles validation internally using rules defined in the model.
+            if ($this->laboratorioModel->save($postData)) {
+                session()->setFlashdata('success', 'Laboratorio creado correctamente.');
+                return redirect()->to(site_url('laboratorio'));
+            } else {
+                session()->setFlashdata('errors', $this->laboratorioModel->errors());
+                return redirect()->to(site_url('laboratorio/crear'))->withInput()->with('errors', $this->laboratorioModel->errors());
+            }
         }
     }
 
-    public function delete($id_lab = null)
+    // Renamed from delete()
+    public function eliminar($id_lab = null)
     {
+        // Check if laboratory exists
+        $laboratorio = $this->laboratorioModel->find($id_lab);
+        if (empty($laboratorio)) {
+            session()->setFlashdata('error', 'Laboratorio no encontrado.');
+            return redirect()->to(site_url('laboratorio'));
+        }
+
         if ($this->laboratorioModel->delete($id_lab)) {
-            session()->setFlashdata('success', 'Laboratorio deleted successfully.');
+            session()->setFlashdata('success', 'Laboratorio eliminado correctamente.');
         } else {
-            // You might want to check for specific errors, e.g., protected foreign key
-            $errors = $this->laboratorioModel->errors(); // Check if model produces specific delete errors
-            $dbError = $this->laboratorioModel->db->error(); // More generic DB error
-            if (!empty($errors) && isset($errors['foreignKey'])) {
-                 session()->setFlashdata('error', 'Failed to delete laboratorio: ' . $errors['foreignKey']);
-            } else if ($dbError && !empty($dbError['message'])) {
-                 session()->setFlashdata('error', 'Failed to delete laboratorio. DB Error: ' . $dbError['message']);
-            }
-            else {
-                session()->setFlashdata('error', 'Failed to delete laboratorio. It might be in use or does not exist.');
+            // More specific error message if possible (e.g., foreign key constraint)
+            $dbError = $this->laboratorioModel->db->error();
+            if ($dbError && !empty($dbError['message'])) {
+                 session()->setFlashdata('error', 'Error al eliminar el laboratorio. Es posible que esté en uso. (DB Error: ' . $dbError['code'] .')');
+            } else {
+                 session()->setFlashdata('error', 'Error al eliminar el laboratorio.');
             }
         }
-        return redirect()->to(site_url('laboratorios'));
+        return redirect()->to(site_url('laboratorio'));
     }
 }

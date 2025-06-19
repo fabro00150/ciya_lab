@@ -1,21 +1,26 @@
-<?= $this->extend('layouts/default') ?> <!-- Assuming a default layout file -->
+<?= $this->extend('base') ?> <!-- Changed from layouts/default -->
+
+<?= $this->section('title') ?>
+    <?php
+        $is_edit_form = isset($docente) && !empty($docente) && isset($docente['id_doc']);
+        echo $is_edit_form ? 'Editar Docente' : 'Crear Nuevo Docente';
+    ?>
+<?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
 
 <?php
     $is_edit = isset($docente) && !empty($docente) && isset($docente['id_doc']);
-    $form_action = $is_edit ? site_url('docentes/update/' . $docente['id_doc']) : site_url('docentes/create');
+    // Form action now points to docente/guardar for both create and edit
+    $form_action = site_url('docente/guardar');
 
-    // Retrieve errors and old input from session flashdata if available
-    // This is useful when redirecting back with validation errors
-    $errors = $errors ?? session()->getFlashdata('errors') ?? [];
-    $old_input = $old_input ?? session()->getFlashdata('old_input') ?? [];
+    $current_errors = session()->getFlashdata('errors') ?? $errors ?? []; // errors can be passed directly too
+    $old_input_data = session()->getFlashdata('old_input') ?? [];
 
     // Function to get old value or docente value
-    // Priority: old input (if validation failed), then existing docente data (for edit), then empty
-    function getValue($field_name, $docente_data, $old_input_data) {
-        if (isset($old_input_data[$field_name])) {
-            return esc($old_input_data[$field_name]);
+    function getFormValue($field_name, $docente_data, $old_data) {
+        if (!empty($old_data) && isset($old_data[$field_name])) {
+            return esc($old_data[$field_name]);
         } elseif (isset($docente_data[$field_name])) {
             return esc($docente_data[$field_name]);
         }
@@ -23,13 +28,13 @@
     }
 ?>
 
-<h2><?= $is_edit ? 'Edit Docente' : 'Create New Docente' ?></h2>
+<h2><?= $is_edit ? 'Editar Docente' : 'Crear Nuevo Docente' ?></h2>
 
-<?php if (!empty($errors)): ?>
+<?php if (!empty($current_errors)): ?>
     <div class="alert alert-danger">
-        <p><strong>Please correct the following errors:</strong></p>
+        <p><strong>Por favor corrija los siguientes errores:</strong></p>
         <ul>
-            <?php foreach ($errors as $error): ?>
+            <?php foreach ($current_errors as $error): ?>
                 <li><?= esc($error) ?></li>
             <?php endforeach; ?>
         </ul>
@@ -39,118 +44,113 @@
 <?= form_open($form_action) ?>
     <?= csrf_field() ?>
 
-    <div class="form-group">
-        <label for="cedula_doc">Cédula</label>
+    <?php if ($is_edit): ?>
+        <input type="hidden" name="id_doc" value="<?= esc($docente['id_doc']) ?>">
+    <?php endif; ?>
+
+    <div class="form-group mb-3">
+        <label for="cedula_doc" class="form-label">Cédula</label>
         <input type="text" name="cedula_doc" id="cedula_doc" class="form-control"
-               value="<?= getValue('cedula_doc', $docente ?? [], $old_input) ?>" required>
+               value="<?= getFormValue('cedula_doc', $docente ?? [], $old_input_data) ?>" required>
     </div>
 
-    <div class="form-group">
-        <label for="nombre_doc">Nombres</label>
+    <div class="form-group mb-3">
+        <label for="nombre_doc" class="form-label">Nombres</label>
         <input type="text" name="nombre_doc" id="nombre_doc" class="form-control"
-               value="<?= getValue('nombre_doc', $docente ?? [], $old_input) ?>" required>
+               value="<?= getFormValue('nombre_doc', $docente ?? [], $old_input_data) ?>" required>
     </div>
 
-    <div class="form-group">
-        <label for="primer_apellido_doc">Primer Apellido</label>
+    <div class="form-group mb-3">
+        <label for="primer_apellido_doc" class="form-label">Primer Apellido</label>
         <input type="text" name="primer_apellido_doc" id="primer_apellido_doc" class="form-control"
-               value="<?= getValue('primer_apellido_doc', $docente ?? [], $old_input) ?>" required>
+               value="<?= getFormValue('primer_apellido_doc', $docente ?? [], $old_input_data) ?>" required>
     </div>
 
-    <div class="form-group">
-        <label for="segundo_apellido_doc">Segundo Apellido</label>
+    <div class="form-group mb-3">
+        <label for="segundo_apellido_doc" class="form-label">Segundo Apellido</label>
         <input type="text" name="segundo_apellido_doc" id="segundo_apellido_doc" class="form-control"
-               value="<?= getValue('segundo_apellido_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('segundo_apellido_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="email_doc">Email</label>
+    <div class="form-group mb-3">
+        <label for="email_doc" class="form-label">Email</label>
         <input type="email" name="email_doc" id="email_doc" class="form-control"
-               value="<?= getValue('email_doc', $docente ?? [], $old_input) ?>" required>
+               value="<?= getFormValue('email_doc', $docente ?? [], $old_input_data) ?>" required>
     </div>
 
-    <div class="form-group">
-        <label for="sexo_doc">Sexo</label>
+    <div class="form-group mb-3">
+        <label for="sexo_doc" class="form-label">Sexo</label>
         <input type="text" name="sexo_doc" id="sexo_doc" class="form-control"
-               value="<?= getValue('sexo_doc', $docente ?? [], $old_input) ?>">
-        <!-- Consider using a select dropdown for predefined values e.g., 'Masculino', 'Femenino' -->
+               value="<?= getFormValue('sexo_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="abreviatura_titulo_doc">Abreviatura Título</label>
+    <div class="form-group mb-3">
+        <label for="abreviatura_titulo_doc" class="form-label">Abreviatura Título</label>
         <input type="text" name="abreviatura_titulo_doc" id="abreviatura_titulo_doc" class="form-control"
-               value="<?= getValue('abreviatura_titulo_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('abreviatura_titulo_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="fotografia_doc">Fotografía (URL/Path)</label>
+    <div class="form-group mb-3">
+        <label for="fotografia_doc" class="form-label">Fotografía (URL/Path)</label>
         <input type="text" name="fotografia_doc" id="fotografia_doc" class="form-control"
-               value="<?= getValue('fotografia_doc', $docente ?? [], $old_input) ?>">
-        <!-- For actual file upload, use type="file" and form_open_multipart() -->
+               value="<?= getFormValue('fotografia_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="perfil_profesional_doc">Perfil Profesional</label>
-        <textarea name="perfil_profesional_doc" id="perfil_profesional_doc" class="form-control" rows="3"><?= getValue('perfil_profesional_doc', $docente ?? [], $old_input) ?></textarea>
+    <div class="form-group mb-3">
+        <label for="perfil_profesional_doc" class="form-label">Perfil Profesional</label>
+        <textarea name="perfil_profesional_doc" id="perfil_profesional_doc" class="form-control" rows="3"><?= getFormValue('perfil_profesional_doc', $docente ?? [], $old_input_data) ?></textarea>
     </div>
 
-    <div class="form-group">
-        <label for="telefono_doc">Teléfono</label>
+    <div class="form-group mb-3">
+        <label for="telefono_doc" class="form-label">Teléfono</label>
         <input type="text" name="telefono_doc" id="telefono_doc" class="form-control"
-               value="<?= getValue('telefono_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('telefono_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="oficina_doc">Oficina</label>
+    <div class="form-group mb-3">
+        <label for="oficina_doc" class="form-label">Oficina</label>
         <input type="text" name="oficina_doc" id="oficina_doc" class="form-control"
-               value="<?= getValue('oficina_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('oficina_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="facebook_doc">Facebook URL</label>
+    <div class="form-group mb-3">
+        <label for="facebook_doc" class="form-label">Facebook URL</label>
         <input type="url" name="facebook_doc" id="facebook_doc" class="form-control"
-               value="<?= getValue('facebook_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('facebook_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="twitter_doc">Twitter Handle (X)</label>
+    <div class="form-group mb-3">
+        <label for="twitter_doc" class="form-label">Twitter Handle (X)</label>
         <input type="text" name="twitter_doc" id="twitter_doc" class="form-control"
-               value="<?= getValue('twitter_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('twitter_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="linkedin_doc">LinkedIn URL</label>
+    <div class="form-group mb-3">
+        <label for="linkedin_doc" class="form-label">LinkedIn URL</label>
         <input type="url" name="linkedin_doc" id="linkedin_doc" class="form-control"
-               value="<?= getValue('linkedin_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('linkedin_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="pagina_web_doc">Página Web</label>
+    <div class="form-group mb-3">
+        <label for="pagina_web_doc" class="form-label">Página Web</label>
         <input type="url" name="pagina_web_doc" id="pagina_web_doc" class="form-control"
-               value="<?= getValue('pagina_web_doc', $docente ?? [], $old_input) ?>">
+               value="<?= getFormValue('pagina_web_doc', $docente ?? [], $old_input_data) ?>">
     </div>
 
-    <div class="form-group">
-        <label for="fk_id_car">ID Carrera (FK)</label>
+    <div class="form-group mb-3">
+        <label for="fk_id_car" class="form-label">ID Carrera (FK)</label>
         <input type="number" name="fk_id_car" id="fk_id_car" class="form-control"
-               value="<?= getValue('fk_id_car', $docente ?? [], $old_input) ?>" required>
+               value="<?= getFormValue('fk_id_car', $docente ?? [], $old_input_data) ?>" required>
     </div>
 
-    <div class="form-group">
-        <label for="fk_id_usu">ID Usuario (FK)</label>
+    <div class="form-group mb-3">
+        <label for="fk_id_usu" class="form-label">ID Usuario (FK)</label>
         <input type="number" name="fk_id_usu" id="fk_id_usu" class="form-control"
-               value="<?= getValue('fk_id_usu', $docente ?? [], $old_input) ?>" required>
+               value="<?= getFormValue('fk_id_usu', $docente ?? [], $old_input_data) ?>" required>
     </div>
 
-    <!--
-        Audit fields (usuario_creacion_doc, usuario_actualizacion_doc) are typically set in the controller
-        based on the logged-in user and should not be directly editable by the user in the form.
-        If they were to be shown (e.g., for admin debugging), they would be read-only.
-        For this form, we omit them as per standard practice.
-    -->
-
-    <button type="submit" class="btn btn-primary"><?= $is_edit ? 'Update' : 'Create' ?> Docente</button>
-    <a href="<?= site_url('docentes') ?>" class="btn btn-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary"><?= $is_edit ? 'Actualizar' : 'Guardar' ?> Docente</button>
+    <a href="<?= site_url('docente') ?>" class="btn btn-secondary">Cancelar</a>
 
 <?= form_close() ?>
 
