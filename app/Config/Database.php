@@ -29,7 +29,7 @@ class Database extends Config
                 'hostname'   => 'localhost',
                 'username'   => 'postgres',
                 'password'   => '0590',
-                'database'   => 'ci4',
+                'database'   => 'ciya_lab',
                 'schema'     => 'public',
                 'DBDriver'   => 'Postgre',
                 'DBPrefix'   => '',
