@@ -24,10 +24,10 @@
             </a>
         </div>
         
-        <?php if (session()->getFlashdata('success')): ?>
-            <div class="alert alert-success">
-                <?= session()->getFlashdata('success') ?>
-            </div>
+        <?php if(session()->has('success')): ?>
+            <div class="alert alert-success"><?= session('success') ?></div>
+        <?php endif; ?>
+        
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="table-dark">
