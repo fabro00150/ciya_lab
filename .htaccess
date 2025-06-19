@@ -1,0 +1,41 @@
+Options -Indexes
+AddDefaultCharset UTF-8
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Set the RewriteBase if your CI project is in a subdirectory.
+    # If your project is at the web root (e.g., http://localhost:8080/),
+    # then RewriteBase / is correct.
+    # If it's in a subfolder (e.g., http://localhost:8080/my_ci_app/),
+    # set it to /my_ci_app/
+    RewriteBase /
+
+    # Deny direct access to framework directories and sensitive files
+    # Ensure to deny access to the directory itself and any file within it.
+    RewriteRule ^app(/.*)?$ - [F,L]
+    RewriteRule ^system(/.*)?$ - [F,L]
+    RewriteRule ^writable(/.*)?$ - [F,L]
+    RewriteRule ^tests(/.*)?$ - [F,L]
+    RewriteRule ^\.env$ - [F,L]
+    RewriteRule ^composer\.json$ - [F,L]
+    RewriteRule ^composer\.lock$ - [F,L]
+    RewriteRule ^spark$ - [F,L]
+
+    # Front Controller: send all other requests to public/index.php
+    # This assumes your server's DocumentRoot is the project root (where this .htaccess file is located).
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/index.php/$1 [L,QSA]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    # If mod_rewrite is not available, attempt to deny access to prevent listing of files.
+    # This is a fallback and proper server configuration is preferred for security.
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Deny from all
+    </IfModule>
+</IfModule>
