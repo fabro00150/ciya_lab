@@ -1,10 +1,15 @@
+
 <?= $this->extend('base') ?>
 
 <?= $this->section('title') ?>
     <?= esc($title ?? 'Inicio - Sistema de Gestión') ?>
 <?= $this->endSection() ?>
+=======
+<?= $this->extends('base') ?>
+
 
 <?= $this->section('content') ?>
+
 <div class="container mt-4">
 
     <div class="p-5 mb-4 bg-light rounded-3">
@@ -82,4 +87,6 @@
     </div>
 
 </div>
+
+
 <?= $this->endSection() ?>
