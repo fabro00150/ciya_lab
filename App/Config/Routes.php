@@ -9,6 +9,14 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->get('/', 'HomeController::index'); // Main navigation page
 
+
+// AUTHENTICATION ROUTES
+// -------------------------------
+$routes->get('login', 'AuthController::login');          // Display login form
+$routes->post('login', 'AuthController::attemptLogin');   // Process login form submission
+$routes->get('logout', 'AuthController::logout');         // Process logout
+
+
 // DOCENTE
 // -------------------------------
 // Using specified method names: crear, guardar, editar, eliminar, index, show
